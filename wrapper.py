@@ -2,7 +2,6 @@ import argparse
 import logging
 import subprocess
 import os
-import time
 from Bio import Entrez, SeqIO
 import pandas as pd
 from collections import defaultdict
@@ -63,8 +62,6 @@ def process_abundance(samples, log_file):
         for sample_id, condition in samples.items(): # for each sample id and condition
             file_path = f"results/{sample_id}/abundance.tsv" # get the file path to abundance file
             try:
-                # adding delay to ensure the file is fully written
-                time.sleep(2)
                 if not os.path.exists(file_path): 
                     # if the path does not exist, output to log file that it does not exist
                     logging.error(f"File not found: {file_path}")
@@ -170,9 +167,6 @@ def concatenate_and_run_spades(patient_ids, log_file):
                     with open(fname) as infile:
                         outfile.write(infile.read())
 
-            # adding a small delay to ensure files are fully written
-            time.sleep(2)
-
             # run spades using kmer size of 77, adjust if needed, 2 processors and only assembler mode using the concatenated files
             spades_command = f"spades.py -k 77 -t 2 --only-assembler -1 {concatenated_1} -2 {concatenated_2} -o {donor}_assembly/"
             log.write(f"{spades_command}\n") # write the spades command used to the log file
@@ -182,6 +176,79 @@ def concatenate_and_run_spades(patient_ids, log_file):
                 logging.error(f"Error running SPAdes for {donor}: {e}") # log the error
                 log.write(f"Error running SPAdes for {donor}: {e}\n") # write the specific error to log file
                 
+def blast(log_file):
+    '''Gets the longest contig and uses it for BLAST+ alignment, which keeps only best alignment
+    Outputs to log the top ten hits for each assembly'''
+    
+    def get_longest_contig(fasta_file):
+        '''Reads a contigs.fasta file and returns longest contig sequence'''
+        longest_contig = None # initializes longest contig as none
+        max_length = 0 #max length of contig is 0
+
+        # parse the FASTA file and find the longest contig
+        for record in SeqIO.parse(fasta_file, "fasta"): # for each record in fasta file
+            if len(record.seq) > max_length:  # if the record (read's) seq length is greater than the current max
+                longest_contig = record  # set it as longest contig
+                max_length = len(record.seq)  # set new max as length of the current read length
+
+        return longest_contig
+
+    assembly_dirs = ["patient1_ids_assembly", "patient2_ids_assembly"] # set directories, may need to alter
+    query_seqfiles = [] # initialize query files as empty list
+    output_files = ['patient1_ids_results.tsv', 'patient1_ids_results.tsv'] # set output file names
+
+    for donor in assembly_dirs: # for each patient/donor in the assembly directories
+        contigs_file = os.path.join(donor, "contigs.fasta") # join paths 
+        output_fasta = os.path.join(donor, "longest_contig.fasta")  # join paths
+
+        # making sure that the path exists before running
+        if os.path.exists(contigs_file):
+            longest_contig = get_longest_contig(contigs_file) # get the longest contig from the spades assembly
+        
+            if longest_contig:
+                print(f"Saving longest contig from {donor} to {output_fasta}") # outputs a message to confirm the longest contig was saved
+                
+                # write the longest contig to a new FASTA file
+                with open(output_fasta, "w") as out_fasta:
+                    SeqIO.write(longest_contig, out_fasta, "fasta") 
+                
+                query_seqfiles.append(output_fasta)  # append the output file to the query file list
+
+    for query, output in zip(query_seqfiles, output_files): # for each query and output file, run blast
+        blast_command = [
+            "blastn", # nucleotide
+            "-query", query, # longest contig
+            "-db", "betaherpesvirinae/betaherpesvirinae", # database
+            "-out", output, # output
+            "-outfmt", "6 qseqid sacc pident length qstart qend sstart send bitscore evalue stitle", # output format as tab deliminated and what we want from the blast
+            "-max_target_seqs", "10", # max hits = 10
+            "-max_hsps", "1"] # max best alignment = 1
+        subprocess.run(blast_command, check = True)
+
+    # define input and output files
+    blast_results = {
+        "Patient 1": "patient1_ids_results.tsv",
+        "Patient 2": "patient2_ids_results.tsv"
+    }
+
+    # open log file in append mode
+    with open(log_file, 'a') as log:
+        for donor, result_file in blast_results.items(): # for each donor and result file, 
+            log.write(f"{donor}:\n")  # write donor label
+
+            # read BLAST results into a dataframe, setting the header names
+            df = pd.read_csv(result_file, sep='\t', header=None, names=[
+                "qseqid", "sacc", "pident", "length", "qstart", "qend", 
+                "sstart", "send", "bitscore", "evalue", "stitle"
+            ])
+            
+            # get top 10 hits (or all if less than 10)
+            top_hits = df.nsmallest(10, "evalue")  # sort by lowest e-value
+
+            # write each row to the log file
+            top_hits.to_csv(log, sep='\t', index=False, header=True) # make sure to write header as well
+            log.write("\n")  # add spacing between donors
+
 def parse_samples(file_path):
     '''Parses a text file to generate patient ID lists and a samples dictionary'''
     
@@ -211,18 +278,18 @@ def main():
     parser.add_argument("--email", help="Your email (required by NCBI).")
     parser.add_argument("--srr", nargs="+", help="List of SRR IDs.")
     parser.add_argument("--samples_file", help="Path to the samples.txt file.")
-    parser.add_argument("--step", choices=["fetch", "index", "quant", "analyze", "bowtie2-build", "bowtie2", "spades", "all"], required=True, help="Specify the pipeline step to run.")
+    parser.add_argument("--step", choices=["fetch", "index", "quant", "analyze", "bowtie2-build", "bowtie2", "spades", "blast", "all"], required=True, help="Specify the pipeline step to run.")
     
     args = parser.parse_args()
-    logging.basicConfig(filename="Pipeline_Project.log", level=logging.INFO, format="%(message)s")
-    fasta_file = "CDS_sequences.fasta"
+    logging.basicConfig(filename="Pipeline_Project.log", level=logging.INFO, format="%(message)s") # configures logging file
+    fasta_file = "CDS_sequences.fasta" 
     index_file = "index.idx"
     # parse samples.txt file
     if args.samples_file:
         patient_ids, samples = parse_samples(args.samples_file)
     else:
         patient_ids, samples = {}, {} # creates empty dictionaries if sample file not included
-
+    '''Below are all of the different steps and args attached to each step'''
     if args.step == "fetch":
         if not args.acc or not args.email:
             logging.error("Fetching genome requires --acc and --email.")
@@ -247,8 +314,9 @@ def main():
         else:
             run_bowtie2_mapping(args.srr, samples, patient_ids, 'Pipeline_Project.log')
     elif args.step == "spades":
-        # Now dynamically use the patient_id dictionary
         concatenate_and_run_spades(patient_ids, "Pipeline_Project.log")
+    elif args.step == "blast":
+        blast("Pipeline_Project.log")
     elif args.step == "all": # if all commands are wanting to be run:
         if not args.acc or not args.email or not args.srr:
             logging.error("Running all steps requires --acc, --email, and --srr IDs.")
@@ -261,9 +329,10 @@ def main():
             run_bowtie2_build()
             run_bowtie2_mapping(args.srr, samples, patient_ids, 'Pipeline_Project.log')
             concatenate_and_run_spades(patient_ids, "Pipeline_Project.log")
+            blast("Pipeline_Project.log")
 
 if __name__ == "__main__":
     main()
 
 
-# python wrapper2.py --acc NC_006273.2 --email hjensen2@luc.edu --srr SRR5660030_sample SRR5660033_sample SRR5660044_sample SRR5660045_sample --samples_file samples.txt --step all
+# python wrapper.py --acc NC_006273.2 --email hjensen2@luc.edu --srr SRR5660030_sample SRR5660033_sample SRR5660044_sample SRR5660045_sample --samples_file samples.txt --step all
