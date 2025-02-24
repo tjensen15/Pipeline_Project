@@ -122,21 +122,28 @@ def run_bowtie2_mapping(ids, samples, patient_ids, log_file):
             # sum the number of lines that contain @SRR, since this indicates a read
             return sum(1 for line in file if re.match(r'^@SRR', line)) # re.match uses regular expression
 
+    # mapping of sample IDs to donors
+    sample_to_donor = {
+        "SRR5660030_sample": "Donor 1",
+        "SRR5660033_sample": "Donor 1",
+        "SRR5660044_sample": "Donor 3",
+        "SRR5660045_sample": "Donor 3",
+        # add more sample-to-donor mappings as needed
+    }
+
     with open(log_file, 'a') as log:
-        for sample, condition in samples.items(): # for each sample and condition
-            total_reads_before = count_reads(f"SRA/{sample}_1.fastq") # get total reads before mapping
-            total_reads_after = count_reads(f"bowtie2_results/{sample}_aligned.1.fastq") # get total reads after mapping from file with only aligned reads
+        for sample, condition in samples.items():
+            total_reads_before = count_reads(f"SRA/{sample}_1.fastq")
+            total_reads_after = count_reads(f"bowtie2_results/{sample}_aligned.1.fastq")
 
-            donor = "Unknown" # initialize donor
-            # if the condition is 2dpi, donor is donor 1
-            if condition == "2dpi":
-                donor = "Donor 1"
-            elif condition == "6dpi": # if condition is 6dpi, donor is donor 3
-                donor = "Donor 3"
-            else: # if none of these conditions are true, output to log file that this needs to be changed
-                log.write('Please alter run_bowtie2_mapping code to match your conditions.')
+            # assign donor based on sample ID
+            donor = sample_to_donor.get(sample, "Unknown")
 
-            # append to log
+            # log if the sample ID isn't recognized
+            if donor == "Unknown":
+                log.write(f"Warning: Sample '{sample}' does not have a donor assigned.\n")
+
+            # append to log the number of reads before and after bowtie2
             log.write(f"{donor} ({condition}) had {total_reads_before} read pairs before Bowtie2 filtering and {total_reads_after} read pairs after.\n")
 
 def concatenate_and_run_spades(patient_ids, log_file):
@@ -195,7 +202,7 @@ def blast(log_file):
 
     assembly_dirs = ["patient1_ids_assembly", "patient2_ids_assembly"] # set directories, may need to alter
     query_seqfiles = [] # initialize query files as empty list
-    output_files = ['patient1_ids_results.tsv', 'patient1_ids_results.tsv'] # set output file names
+    output_files = ['patient1_ids_results.tsv', 'patient2_ids_results.tsv'] # set output file names
 
     for donor in assembly_dirs: # for each patient/donor in the assembly directories
         contigs_file = os.path.join(donor, "contigs.fasta") # join paths 
@@ -225,7 +232,7 @@ def blast(log_file):
             "-max_hsps", "1"] # max best alignment = 1
         subprocess.run(blast_command, check = True)
 
-    # define input and output files
+    # define input and output files, alter if more or less patients/donors
     blast_results = {
         "Patient 1": "patient1_ids_results.tsv",
         "Patient 2": "patient2_ids_results.tsv"
