@@ -234,8 +234,8 @@ def blast(log_file):
 
     # define input and output files, alter if more or less patients/donors
     blast_results = {
-        "Patient 1": "patient1_ids_results.tsv",
-        "Patient 2": "patient2_ids_results.tsv"
+        "Donor 1": "patient1_ids_results.tsv",
+        "Donor 2": "patient2_ids_results.tsv"
     }
 
     # open log file in append mode
