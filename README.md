@@ -10,9 +10,9 @@ git clone https://github.com/tjensen15/Pipeline_Project
 ### Dependencies
 To run the wrapper.py script, the following tools and libraries are necessary:
 
-1. R: R with sleuth library downloaded. Here is guidance on how to download it: [Sleuth R Package Download Information] (https://pachterlab.github.io/sleuth/download)
+1. R: R with sleuth library downloaded. Here is guidance on how to download it: [Sleuth R Package Download Information](https://pachterlab.github.io/sleuth/download)
 2. Python: Must have the following libraries downloaded: argparse, logging, subprocess, os, Biopython, collections, and re. 
-3. Command line tools: Must have the following tools downloaded (documentation hyperlinked): [kallisto] (https://pachterlab.github.io/kallisto/download), [bowtie2] (https://github.com/BenLangmead/bowtie2), [SPAdes] (https://github.com/ablab/spades?tab=readme-ov-file), and [BLAST+] (https://blast.ncbi.nlm.nih.gov/doc/blast-help/downloadblastdata.html)
+3. Command line tools: Must have the following tools downloaded (documentation hyperlinked): [kallisto](https://pachterlab.github.io/kallisto/download), [bowtie2](https://github.com/BenLangmead/bowtie2), [SPAdes](https://github.com/ablab/spades?tab=readme-ov-file), and [BLAST+](https://blast.ncbi.nlm.nih.gov/doc/blast-help/downloadblastdata.html)
 
 ## Parameters description
 Main parameters:
