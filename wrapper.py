@@ -148,41 +148,30 @@ def run_bowtie2_mapping(ids, samples, patient_ids, log_file):
 
 def concatenate_and_run_spades(patient_ids, log_file):
     '''Concatenate FASTQ files and run SPAdes assembly dynamically for multiple patients'''
-    bowtie2_dir = os.path.abspath("bowtie2_results") # get absolute path of bowtie2_results
-    results_dir = os.path.abspath("results") # get absolute path of results 
+    with open(log_file, 'a') as log:
+        # run spades using kmer size of 77, adjust if needed, 2 processors and only assembler mode using the concatenated files
+        spades_assembly1 = f"spades.py -k 77 -t 2 --only-assembler -o Donor1_assembly \
+        --pe1-1 bowtie2_results/SRR5660030_sample_aligned.1.fastq --pe1-2 bowtie2_results/SRR5660030_sample_aligned.2.fastq \
+        --pe2-1 bowtie2_results/SRR5660033_sample_aligned.1.fastq --pe2-2 bowtie2_results/SRR5660033_sample_aligned.2.fastq"
+        log.write(f"{spades_assembly1}\n") # write the spades command used to the log file
+        try:
+            subprocess.run(spades_assembly1, shell=True, check=True) # run command via shell
+        except subprocess.CalledProcessError as e:
+            logging.error(f"Error running SPAdes {e}") # log the error
+            log.write(f"Error running SPAdes {e}\n") # write the specific error to log file
+        
+        # spades assembly for donor 3, similar process as above
+        spades_assembly2 = f"spades.py -k 77 -t 2 --only-assembler -o Donor3_assembly \
+        --pe1-1 bowtie2_results/SRR5660044_sample_aligned.1.fastq --pe1-2 bowtie2_results/SRR5660044_sample_aligned.2.fastq \
+        --pe2-1 bowtie2_results/SRR5660045_sample_aligned.1.fastq --pe2-2 bowtie2_results/SRR5660045_sample_aligned.2.fastq"
 
-    with open(log_file, "a") as log:
-        # loop through each patient group
-        for donor, ids in patient_ids.items():
-            # get file paths for one set of paired end reads 1 as a list
-            aligned_1_files = [os.path.join(bowtie2_dir, f"{id}_aligned.1.fastq") for id in ids]
-            # get file paths for other set of paired end reads 2 as a list
-            aligned_2_files = [os.path.join(bowtie2_dir, f"{id}_aligned.2.fastq") for id in ids]
-            # output file names for concatenated files, one per donor
-            concatenated_1 = f"{donor}_aligned.1.fastq"
-            concatenated_2 = f"{donor}_aligned.2.fastq"
-
-            # concatenate all the aligned 1 files into a single file
-            with open(concatenated_1, 'w') as outfile:
-                for fname in aligned_1_files: # iterate over each input file
-                    with open(fname) as infile: # open each file in read mode
-                        outfile.write(infile.read()) # read the file content and write it to the output file
-
-            # concatenate all the aligned 2 files into a single file, same process as above
-            with open(concatenated_2, 'w') as outfile:
-                for fname in aligned_2_files:
-                    with open(fname) as infile:
-                        outfile.write(infile.read())
-
-            # run spades using kmer size of 77, adjust if needed, 2 processors and only assembler mode using the concatenated files
-            spades_command = f"spades.py -k 77 -t 2 --only-assembler -1 {concatenated_1} -2 {concatenated_2} -o {donor}_assembly/"
-            log.write(f"{spades_command}\n") # write the spades command used to the log file
-            try:
-                subprocess.run(spades_command, shell=True, check=True) # run command via shell
-            except subprocess.CalledProcessError as e:
-                logging.error(f"Error running SPAdes for {donor}: {e}") # log the error
-                log.write(f"Error running SPAdes for {donor}: {e}\n") # write the specific error to log file
-                
+        log.write(f"{spades_assembly2}\n") # write the spades command used to the log file
+        try:
+            subprocess.run(spades_assembly2, shell=True, check=True) # run command via shell
+        except subprocess.CalledProcessError as e:
+            logging.error(f"Error running SPAdes {e}") # log the error
+            log.write(f"Error running SPAdes {e}\n") # write the specific error to log file
+         
 def blast(log_file):
     '''Gets the longest contig and uses it for BLAST+ alignment, which keeps only best alignment
     Outputs to log the top ten hits for each assembly'''
@@ -200,9 +189,9 @@ def blast(log_file):
 
         return longest_contig
 
-    assembly_dirs = ["patient1_ids_assembly", "patient2_ids_assembly"] # set directories, may need to alter
+    assembly_dirs = ["Donor1_assembly", "Donor3_assembly"] # set directories, may need to alter
     query_seqfiles = [] # initialize query files as empty list
-    output_files = ['patient1_ids_results.tsv', 'patient2_ids_results.tsv'] # set output file names
+    output_files = ['donor1_results.tsv', 'donor3_results.tsv'] # set output file names
 
     for donor in assembly_dirs: # for each patient/donor in the assembly directories
         contigs_file = os.path.join(donor, "contigs.fasta") # join paths 
@@ -234,8 +223,8 @@ def blast(log_file):
 
     # define input and output files, alter if more or less patients/donors
     blast_results = {
-        "Donor 1": "patient1_ids_results.tsv",
-        "Donor 2": "patient2_ids_results.tsv"
+        "Donor 1": "donor1_results.tsv",
+        "Donor 3": "donor3_results.tsv"
     }
 
     # open log file in append mode
@@ -245,7 +234,7 @@ def blast(log_file):
 
             # read BLAST results into a dataframe, setting the header names
             df = pd.read_csv(result_file, sep='\t', header=None, names=[
-                "qseqid", "sacc", "pident", "length", "qstart", "qend", 
+                "sacc", "pident", "length", "qstart", "qend", 
                 "sstart", "send", "bitscore", "evalue", "stitle"
             ])
             
@@ -285,10 +274,14 @@ def main():
     parser.add_argument("--email", help="Your email (required by NCBI).")
     parser.add_argument("--srr", nargs="+", help="List of SRR IDs.")
     parser.add_argument("--samples_file", help="Path to the samples.txt file.")
-    parser.add_argument("--step", choices=["fetch", "index", "quant", "analyze", "bowtie2-build", "bowtie2", "spades", "blast", "all"], required=True, help="Specify the pipeline step to run.")
+    parser.add_argument("--step", nargs= "+", choices=["fetch", "index", "quant", "analyze", "bowtie2-build", "bowtie2", "spades", "blast", "all"], required=True, help="Specify the pipeline step to run.")
     
     args = parser.parse_args()
-    logging.basicConfig(filename="Pipeline_Project.log", level=logging.INFO, format="%(message)s") # configures logging file
+    log_dir = "Pipeline_Project_Tyler_Jensen"
+    os.makedirs(log_dir, exist_ok=True)  # create directory if it doesn't exist
+    # logging file created/configured
+    log_file_path = os.path.join(log_dir, "Pipeline_Project.log")
+    logging.basicConfig(filename=log_file_path, level=logging.INFO, format="%(message)s")
     fasta_file = "CDS_sequences.fasta" 
     index_file = "index.idx"
     # parse samples.txt file
@@ -297,49 +290,43 @@ def main():
     else:
         patient_ids, samples = {}, {} # creates empty dictionaries if sample file not included
     '''Below are all of the different steps and args attached to each step'''
-    if args.step == "fetch":
+    if "fetch" in args.step:
         if not args.acc or not args.email:
             logging.error("Fetching genome requires --acc and --email.")
         else:
             fetch_genome(args.acc, args.email, fasta_file)
-    elif args.step == "index":
+
+    if "index" in args.step:
         build_kallisto_index(fasta_file, index_file)
-    elif args.step == "quant":
+
+    if "quant" in args.step:
         if not args.srr:
             logging.error("Quantification requires --srr IDs.")
         else:
             run_kallisto_quant(index_file, args.srr)
-    elif args.step == "process_abundance":
-        process_abundance(samples, "Pipeline_Project.log")
-    elif args.step == "analyze":
-        run_r_analysis()
-    elif args.step == "bowtie2-build":
-        run_bowtie2_build()
-    elif args.step == "bowtie2":
-        if not args.srr:
-            logging.error("Bowtie2 mapping requires --srr IDs.")
-        else:
-            run_bowtie2_mapping(args.srr, samples, patient_ids, 'Pipeline_Project.log')
-    elif args.step == "spades":
-        concatenate_and_run_spades(patient_ids, "Pipeline_Project.log")
-    elif args.step == "blast":
-        blast("Pipeline_Project.log")
-    elif args.step == "all": # if all commands are wanting to be run:
+
+    if "spades" in args.step:
+        concatenate_and_run_spades(patient_ids, log_file_path)
+
+    if "blast" in args.step:
+        blast(log_file_path)
+
+    # if "all" is selected, run everything
+    if "all" in args.step:
         if not args.acc or not args.email or not args.srr:
             logging.error("Running all steps requires --acc, --email, and --srr IDs.")
         else:
             fetch_genome(args.acc, args.email, fasta_file)
             build_kallisto_index(fasta_file, index_file)
             run_kallisto_quant(index_file, args.srr)
-            process_abundance(samples, "Pipeline_Project.log")
-            run_r_analysis("Pipeline_Project.log")
+            process_abundance(samples, log_file_path)
+            run_r_analysis(log_file_path)
             run_bowtie2_build()
-            run_bowtie2_mapping(args.srr, samples, patient_ids, 'Pipeline_Project.log')
-            concatenate_and_run_spades(patient_ids, "Pipeline_Project.log")
-            blast("Pipeline_Project.log")
+            run_bowtie2_mapping(args.srr, samples, patient_ids, log_file_path)
+            concatenate_and_run_spades(patient_ids, log_file_path)
+            blast(log_file_path)
+
 
 if __name__ == "__main__":
     main()
 
-
-# python wrapper.py --acc NC_006273.2 --email hjensen2@luc.edu --srr SRR5660030_sample SRR5660033_sample SRR5660044_sample SRR5660045_sample --samples_file samples.txt --step all
