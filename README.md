@@ -1,50 +1,41 @@
-# Pipeline_Project
+# NCBI Datasets
 
-This is a pipeline that includes various functions and options to compare transcriptomes based on a given condition. For the test data included, the pipeline will compare the Human cytomegalovirus (HCMV) transcriptomes 2 and 6 days post infection (dpi).
+https://www.ncbi.nlm.nih.gov/datasets
 
-## Installation
-You can clone the repository for all scripts and example data with the command below:
-```
-git clone https://github.com/tjensen15/Pipeline_Project
-```
-### Dependencies
-To run the wrapper.py script, the following tools and libraries are necessary:
+This zip archive contains an NCBI Datasets Data Package.
 
-1. R: R with sleuth library downloaded. Here is guidance on how to download it: [Sleuth R Package Download Information](https://pachterlab.github.io/sleuth/download)
-2. Python: Must have the following libraries downloaded: argparse, logging, subprocess, os, Biopython, collections, and re. 
-3. Command line tools: Must have the following tools downloaded (documentation hyperlinked): [kallisto](https://pachterlab.github.io/kallisto/download), [bowtie2](https://github.com/BenLangmead/bowtie2), [SPAdes](https://github.com/ablab/spades?tab=readme-ov-file), and [BLAST+](https://blast.ncbi.nlm.nih.gov/doc/blast-help/downloadblastdata.html)
+NCBI Datasets Data Packages can include sequence, annotation and other data files, and metadata in one or more data report files.
+Data report files are in JSON Lines format.
 
-## Parameters description
-Main parameters:
-```
-Usage: python wrapper.py --acc <ACCESSION #> --email <YOUR EMAIL> --srr <LIST OF SRR, SPACE DELIM: SRRX SRRX SRRX ...> --samples_file samples.txt --step [OPTIONS]
+---
+## FAQs
+### Where is the data I requested?
 
-    - fetch
-    - index
-    - quant
-    - analyze
-    - bowtie2-build
-    - bowtie2
-    - spades
-    - blast
-    - all       will run all steps above
+Your data is in the subdirectory `ncbi_dataset/data/` contained within this zip archive.
 
-```
-Need to have steps/outputs from any steps above the one you want to run individually.
+### I still can't find my data, can you help?
 
-### General usage:
-```
-### To be run inside the github repo folder
-python wrapper.py --acc NC_006273.2 --email johnsmith@gmail.com --srr SRR5660030_sample SRR5660033_sample SRR5660044_sample SRR5660045_sample --samples_file samples.txt --step all
-```
-Samples text file is needed for parsing ID names, conditions and for an input for sleuth R script. If a samples file is not included, empty dictionaries will be returned and sleuth will not run.
+We have identified a bug affecting Mac Safari users. When downloading data from the NCBI Datasets web interface, you may see only this README file after the download has completed (while other files appear to be missing).
+As a workaround to prevent this issue from recurring, we recommend disabling automatic zip archive extraction in Safari until Apple releases a bug fix.
+For more information, visit:
+https://www.ncbi.nlm.nih.gov/datasets/docs/reference-docs/mac-zip-bug/
 
-General format:
-```
-sample  condition       path
-SRR5660030_sample       2dpi    results/SRR5660030_sample
-SRR5660033_sample       6dpi    results/SRR5660033_sample
-SRR5660044_sample       2dpi    results/SRR5660044_sample
-SRR5660045_sample       6dpi    results/SRR5660045_sample
-```
-This specific pipeline uses HCMV genome and nucleotide database of the Betaherpesvirinae subfamily. If this is not the same genomes and databases you are analyzing, they will need to be downloaded using NCBI's command line tools and need to replace the genomic.fna file and betaherpesvirinae folder.
+### How do I work with JSON Lines data reports?
+
+Visit our JSON Lines data report documentation page:
+https://www.ncbi.nlm.nih.gov/datasets/docs/v2/tutorials/working-with-jsonl-data-reports/
+
+### What is NCBI Datasets?
+
+NCBI Datasets is a resource that lets you easily gather data from across NCBI databases. Find and download gene, transcript, protein and genome sequences, annotation and metadata.
+
+### Where can I find NCBI Datasets documentation?
+
+Visit the NCBI Datasets documentation pages:
+https://www.ncbi.nlm.nih.gov/datasets/docs/
+
+---
+
+National Center for Biotechnology Information
+National Library of Medicine
+info@ncbi.nlm.nih.gov
